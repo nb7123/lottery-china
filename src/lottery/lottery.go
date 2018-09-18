@@ -2,13 +2,16 @@ package lottery
 
 import (
 	"model"
-	"time"
 	"log"
 	"dbhelper"
 
 	"github.com/PuerkitoBio/goquery"
 	"net/http"
 	"fmt"
+	"strconv"
+	"strings"
+	"encoding/json"
+	"os"
 )
 
 func UpdateHistory() (error) {
@@ -18,41 +21,57 @@ func UpdateHistory() (error) {
 	startId, err = dbhelper.SearchLastInertedLottery(model.LotteryTypeWelfare)
 
 	if startId <= 0 {
-		startId = 2003001
+		err = initWelfare()
+		startId = 18108
 	}
 
-	var endDate = time.Now()
-
-	var newData []model.Lottery
+	var currentId = 18108
 
 	if nil == err {
-		for ; ; {
-			lottery, err := getLotteryData(startId)
-			if nil != err {
-				log.Print(err)
 
-				continue
+		for i := startId; i < currentId; i += 100 {
+			var endId = i + 100
+			if endId > currentId {
+				endId = currentId
+			}
+			lottery, err := getLotteryData(i, i+100)
+			if nil != err {
+				log.Fatal(err)
 			}
 
-			newData = append(newData, lottery)
-
-			var tmp = lottery.OpeningTime
-			if tmp.Year() == endDate.Year()&& tmp.Month() == endDate.Month() && tmp.Day() == endDate.Day() {
-				break
+			err = dbhelper.InsertLottery(lottery)
+			if nil != err {
+				log.Fatal(err)
 			}
 		}
-
-		err = dbhelper.InsertLottery(newData)
 	}
 
 
 	return err
 }
 
-func getLotteryData(id int) (model.Lottery, error) {
-	response, err := http.Get(fmt.Sprintf("http://www.17500.cn/ssq/details.php?issue=%v", id))
+func initWelfare() error {
+	f, err := os.Open("./03001-18108.html")
+	defer f.Close()
 
-	var lottery model.Lottery
+	var doc *goquery.Document
+	if nil == err {
+		doc, err = goquery.NewDocumentFromReader(f)
+	}
+
+	if nil == err {
+		err = dbhelper.InsertLottery(parseWelfareData(doc))
+	}
+
+	return err
+}
+
+func getLotteryData(id int, cur int) ([]model.Lottery, error) {
+	var path = fmt.Sprintf("http://datachart.500.com/ssq/?expect=all&from=%05d&to=%05d", id, cur)
+	log.Printf("Data path: %v", path)
+	response, err := http.Get(path)
+
+	var lottery []model.Lottery
 
 	var doc *goquery.Document
 	if nil == err {
@@ -60,31 +79,49 @@ func getLotteryData(id int) (model.Lottery, error) {
 	}
 
 	if nil == err {
-		var selection = doc.Find("center").
-			Find("center").
-			Find("table").
-			Find("tbody").
-			Find("tr").
-			Find("td").Find("table")
-
-		for ; ; {
-			var nodeName = goquery.NodeName(selection)
-			attr, exist := selection.Attr("border")
-			log.Printf("Index: %v, Node name: %v, attribute: %v exist: %v", 1, nodeName, attr, exist)
-
-			selection = selection.Next()
-		}
-		selection.Children().EachWithBreak(func(i int, s *goquery.Selection) bool {
-				var nodeName = goquery.NodeName(s)
-				attr, exist := s.Attr("border")
-				log.Printf("Index: %v, Node name: %v, attribute: %v exist: %v", i, nodeName, attr, exist)
-
-				s.Next()
-
-				return true
-			})
+		lottery = parseWelfareData(doc)
 		//selection.Each()
 	}
 
 	return lottery, err
+}
+
+func parseWelfareData(doc *goquery.Document) ([]model.Lottery) {
+	var lottery []model.Lottery
+
+	var selection = doc.Find("#tdata").Children()
+
+	selection.Each(func(i int, s *goquery.Selection) {
+		log.Printf("Handle index: %v", i)
+		if !s.HasClass("tdbck") {
+			var tmp = model.Lottery{Type: model.LotteryTypeWelfare}
+			s.Children().Each(func(i int, s *goquery.Selection) {
+				if i == 0 {
+					// number
+					v, err := strconv.Atoi(strings.Trim(s.Text(), " "))
+					if nil != err {
+						log.Fatal(s.Text(), err)
+					}
+					tmp.Num = v
+				}
+
+				if s.HasClass("chartBall01") || s.HasClass("chartBall02"){
+					// number
+					v, err := strconv.Atoi(strings.Trim(s.Text(), " "))
+					if nil != err {
+						log.Fatal(err)
+					}
+
+					tmp.ResultNum = append(tmp.ResultNum, v)
+				}
+			})
+
+			lottery = append(lottery, tmp)
+
+			b, _ := json.Marshal(tmp)
+			log.Printf("Lottery info[%v]", string(b))
+		}
+	})
+
+	return lottery
 }

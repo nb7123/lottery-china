@@ -8,7 +8,7 @@ const (
 )
 
 type Lottery struct {
-	Num string
+	Num int
 	OpeningTime time.Time
 	ResultNum []int
 	Type int

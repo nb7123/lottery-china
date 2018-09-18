@@ -5,6 +5,7 @@ import (
 	"time"
 	"dbhelper"
 	"lottery"
+	"log"
 )
 
 func main() {
@@ -12,7 +13,11 @@ func main() {
 
 	dbhelper.InitDB()
 
-	lottery.UpdateHistory()
+	err := lottery.UpdateHistory()
+
+	if nil != err {
+		log.Fatal(err)
+	}
 
 	//getSSCData()
 }

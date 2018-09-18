@@ -9,7 +9,7 @@ import (
 
 var conn *sql.DB
 
-const createStatement string = `
+const createStatement = `
 	create table if not exists  lottery (
 		id integer not null primary key,
 		opening_time datetime,
@@ -38,7 +38,7 @@ func InsertLottery(lotteries []model.Lottery) (error) {
 			var result []byte
 			result, err = json.Marshal(item.ResultNum)
 			
-			_, err = tx.Exec(`insert into welfare(id,
+			_, err = tx.Exec(`replace into lottery(id,
  										opening_time,
    										result,
     									d_type) values (?, ?, ?, ?)`,
