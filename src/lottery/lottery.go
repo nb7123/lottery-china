@@ -18,14 +18,14 @@ func UpdateHistory() (error) {
 	// 查看最后一条数据的ID，确定最后一次更新的时间，然后获取最后时间到现在的所有历史数据
 	var startId = 0
 	var err error = nil
-	startId, err = dbhelper.SearchLastInertedLottery(model.LotteryTypeWelfare)
+	startId, err = dbhelper.SearchLastInsertedWelfare()
 
 	if startId <= 0 {
 		err = initWelfare()
 		startId = 18108
 	}
 
-	var currentId = 18108
+	var currentId = 18109
 
 	if nil == err {
 
@@ -39,7 +39,7 @@ func UpdateHistory() (error) {
 				log.Fatal(err)
 			}
 
-			err = dbhelper.InsertLottery(lottery)
+			err = dbhelper.InsertWelfare(lottery)
 			if nil != err {
 				log.Fatal(err)
 			}
@@ -60,7 +60,7 @@ func initWelfare() error {
 	}
 
 	if nil == err {
-		err = dbhelper.InsertLottery(parseWelfareData(doc))
+		err = dbhelper.InsertWelfare(parseWelfareData(doc))
 	}
 
 	return err
